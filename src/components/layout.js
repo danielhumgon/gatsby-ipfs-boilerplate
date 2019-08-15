@@ -8,6 +8,7 @@ import Header from './Header'
 import Menu from './Menu'
 import Contact from './Contact'
 import Footer from './Footer'
+import MainBanner from './MainBanner'
 
 class Layout extends React.Component {
     constructor(props) {
@@ -19,13 +20,13 @@ class Layout extends React.Component {
         this.handleToggleMenu = this.handleToggleMenu.bind(this)
     }
 
-    componentDidMount () {
+    componentDidMount() {
         this.timeoutId = setTimeout(() => {
-            this.setState({loading: ''});
+            this.setState({ loading: '' });
         }, 100);
     }
 
-    componentWillUnmount () {
+    componentWillUnmount() {
         if (this.timeoutId) {
             clearTimeout(this.timeoutId);
         }
@@ -43,11 +44,12 @@ class Layout extends React.Component {
         return (
             <div className={`body ${this.state.loading} ${this.state.isMenuVisible ? 'is-menu-visible' : ''}`}>
                 <div id="wrapper">
-                    <Header onToggleMenu={this.handleToggleMenu} />
+                 <Header onToggleMenu={this.handleToggleMenu} /> 
+                    <MainBanner />
                     {children}
                     <Footer />
                 </div>
-                <Menu onToggleMenu={this.handleToggleMenu} />
+                <Menu onToggleMenu={this.handleToggleMenu} /> 
             </div>
         )
     }
