@@ -46,7 +46,7 @@ class chat extends React.Component {
       channel: PUBSUB_CHANNEL,
       onlines: [],
       _message: {
-        nickname: "Daniel",
+        nickname: "Erick",
         message: "",
         status: "message"
       },
@@ -162,7 +162,7 @@ console.log(value.keyId);
     if (this.props !== prevProps)
       this.setState({
         message: {
-          nickname: "Daniel",
+          nickname: "Erick",
           text: ""
         }
       })

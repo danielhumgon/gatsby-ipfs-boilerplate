@@ -1,28 +1,32 @@
 // CUSTOMIZE THESE VARIABLES
-const MASTER_MULTIADDR = "/ip4/192.168.1.207/tcp/4004/ipfs/QmRFFTmLG6y8DkJKXQsh2JXtyLvwN5QUog1vZJPtrCddR3"
-const IPFS = require('ipfs')
-let OrbitDB = require('orbit-db')
+const MASTER_MULTIADDR = "/p2p-circuit/ipfs/QmPTRtbFdhgP4g4rLTJ97Fu6RuoojmV7yEDRcN1zSKTY7R"
+let DB_ADDRESS = "/orbitdb/zdpuAyTCPbmFJAhXhCZ8kFpTTKj42W9RdqLH6mbdqEnyXQXxc/example5343234"
+
+const IPFS =typeof window !== `undefined` ? require('ipfs') : null 
+let OrbitDB = typeof window !== `undefined` ? require('orbit-db') : null 
 const channelsSuscriptions = [];
 const getLimit = 10;
 let latestMessages;
 let ipfs
 let ready = false;
-export let DB_NAME = "example5343234"
+let connectedMaster = new Date();
+export let DB_NAME = "example534323488"
 export let ipfsId;
 export let db;
-export const PUBSUB_CHANNEL = 'ipfs-test-chat-app2'
+export const PUBSUB_CHANNEL = 'ipfsObitdb-chat'
 export let dataFromMasterChannel;
-export let userName = 'Node11231';
+export let userName = 'Node' + Math.floor(Math.random() * 900 + 100).toString();
 export let onlineNodes = [];
 export let output = '';
-export let channelSend = 'ipfs-test-chat-app2';
+export let channelSend = 'ipfsObitdb-chat';
 export const node = async () => {
+  if(IPFS && OrbitDB){
 
   console.log("Starting...")
   // init ipfs node 
   ipfs = new IPFS({
     preload: { enabled: false },
-    repo: './orbitdb/examples/ipfs',
+    repo: './orbitdb/examples2/ipfs',
     start: true,
     EXPERIMENTAL: {
       pubsub: true,
@@ -54,13 +58,13 @@ export const node = async () => {
 
   ipfs.on('ready', async () => {
     ready = true;
+
     console.log("ready")
+
     ipfsId = await ipfs.id()
-    // console.log(ipfsId)
-    let onlineUsers = [];
-    await ipfs.swarm.connect(MASTER_MULTIADDR)
+    await repeatedConnect(ipfs)
     console.log("conected!!!!!")
-    createDb(DB_NAME) // create db
+    createDb(DB_ADDRESS) // create db
 
     channelsSuscriptions.push(PUBSUB_CHANNEL)
     // subscribe to master node
@@ -74,11 +78,20 @@ export const node = async () => {
           jsonData.onlineNodes[nodes].username ? onlineUsers.push(jsonData.onlineNodes[nodes]) : onlineUsers.push(nodes);
         }
         onlineNodes = [...onlineUsers]
+         
       }
-
-
+      if (jsonData.status === 'online' && jsonData.username === 'system') {
+        connectedMaster = new Date()
+      }
     })
-
+    //Returns the peers that are subscribed to one topic.
+    /*  ipfs.pubsub.peers(PUBSUB_CHANNEL, (err, peerIds) => {
+        if (err) {
+          return console.error(`failed to get peers subscribed to ${PUBSUB_CHANNEL}`, err)
+        }
+        onlineNodes = peerIds;
+        console.log(peerIds)
+      })*/
     // subscribe to my node 
     channelsSuscriptions.push(ipfsId.id)
     ipfs.pubsub.subscribe(ipfsId.id, (data) => {
@@ -90,42 +103,51 @@ export const node = async () => {
       console.log("localdb: " + db.id)
       console.log("my_id: " + ipfsId.id)
       if (jsonData.peer1 === ipfsId.id) {
-        if (jsonData.exist) {
-          channelSend = jsonData.channelName
-          console.log("change channel to : " + jsonData.channelName)
-        }
+
+        channelSend = jsonData.channelName
+        console.log("change channel to : " + jsonData.channelName)
         let flag = true;
-        createDb(jsonData.dbName)
+        createDb(jsonData.dbName, true)
+
         for (let i = 0; i < channelsSuscriptions.length; i++)
           // verify existing subscriptions
           if (flag && channelsSuscriptions[i] === jsonData.channelName) flag = false;
         flag && subscribe(jsonData.channelName)
-        setTimeout(() => { queryGet() }, 500);
+        //  setTimeout(() => { queryGet() }, 300);
 
       }
 
     })
     // sending online status to master node 
     setInterval(() => {
+    //  verifyConectionWithMaster();
       const msg = { status: 'online', username: userName }
       const msgEncoded = ipfs.types.Buffer.from(JSON.stringify(msg))
-      ipfs.pubsub.publish(PUBSUB_CHANNEL, msgEncoded)
+      ipfs.pubsub.publish(PUBSUB_CHANNEL, msgEncoded, (err) => {
+        if (err) {
+          return console.error(`failed to publish to ${PUBSUB_CHANNEL}`, err)
+        }
+        // msg was broadcasted
+        //console.log(`published to ${PUBSUB_CHANNEL}`)
+      })
     }, 1000)
 
   })
+  }
 }
-
-export const requestPersonChat = async (peerClient,reset) => {
-if(reset){
-createDb(DB_NAME);
-return PUBSUB_CHANNEL
-}
-  const myID = ipfsId.id//.substring(0, 3);
-  const clientId = peerClient.toString()//.substring(0, 3);
+export const requestPersonChat = async (peerClient, reset) => {
+  if (reset) {
+    console.log("reset : " + reset)
+    createDb(DB_ADDRESS)
+    return PUBSUB_CHANNEL
+  }
+  const myID = ipfsId.id
+  const clientId = peerClient.toString()
   const newChannelName = myID + clientId
   const newDbName = newChannelName + "1232772"
   const msg = { status: 'requestChat', channelName: newChannelName, dbName: newDbName, peer1: myID, peer2: clientId, dbId: db.id }
   const msgEncoded = ipfs.types.Buffer.from(JSON.stringify(msg))
+  console.log("publish request : " + reset)
   ipfs.pubsub.publish(PUBSUB_CHANNEL, msgEncoded)
 
   return newChannelName;
@@ -138,7 +160,6 @@ export const subscribe = async (channelName) => {
     console.log("room: " + channelName);
     const jsonData = JSON.parse(data.data.toString())
     if (jsonData.status === 'message') {
-      console.log("msg: " + jsonData.message);
       query(jsonData.username, jsonData.message);
 
     }
@@ -156,55 +177,70 @@ export const sendMessg = async (nickname, message, channel, useLocalChannel) => 
   const msgEncoded = ipfs.types.Buffer.from(JSON.stringify(msgText))
   console.log("channel: " + ch)
   ipfs.pubsub.publish(ch, msgEncoded)
+  if (channelSend == PUBSUB_CHANNEL) query(userName, msgText.message);
 }
 export const changeCh = async (NEW_CH) => {
 
- 
-      channelSend = NEW_CH
+
+  channelSend = NEW_CH
 
 }
-const createDb = async (DB_NAME) => {
-
+const createDb = async (db_addrs, createNew = false) => {
+  const optionsDb = {
+    directory: './orbitdb3/examplesipfs/eventlog'
+  }
   try {
-
     const access = {
-      // Give write access to everyone
-      write: ["*"]
+      accessController: {
+        write: ["*"],
+        overwrite: true
+      }
     };
+    if (createNew) {
 
-    const orbitdb = new OrbitDB(ipfs, './orbitdb/examples/eventlog')
-    db = await orbitdb.eventlog(DB_NAME, access)//orbitdb.eventlog(DB_NAME, access)
-    await db.load()
-    console.log(`db id: ${db.id}`)
-    console.log(db);
-    queryGet();
-
-    db.events.on('replicated', () => {
-      if(channelSend ==PUBSUB_CHANNEL)
-        queryGet();
-      console.log("replicated")
+      const orbitdb = await OrbitDB.createInstance(ipfs, optionsDb)
+      db = await orbitdb.eventlog(db_addrs, access)
+      await db.load()
+      console.log(`db id: ${db.id}`)
+      console.log(db);
+      queryGet();
+    } else {
+      const orbitdb = await OrbitDB.createInstance(ipfs, optionsDb)
+      db = await orbitdb.eventlog(db_addrs, access)
+      await db.load()
+      console.log(`db id: ${db.id}`)
+      console.log(db);
+      queryGet();
+    }
+    db.events.on('replicated', (db_addrs) => {
+      // if(channelSend ==PUBSUB_CHANNEL)
+      queryGet();
+      console.log("replicated event")
     })
   } catch (e) {
-    console.log("Errrrr")
     console.error(e)
   }
 
 
 
+}
+const verifyConectionWithMaster = async () => {
+  if (((new Date() - connectedMaster) / 1500) > 5) {
+    onlineNodes = []
+  }
 }
 const queryGet = async () => {
   try {
-
     latestMessages = db.iterator({ limit: 10 }).collect();
     output = "";
-     //desencryt  here e.payload.value
+    //desencryt  here e.payload.value
     output += latestMessages.map((e) => e.payload.value.nickname + ' : ' + e.payload.value.message).join('\n') + `\n`
-
+    console.log(output)
   } catch (e) {
     console.error(e)
-    process.exit(1)
   }
 }
+
 const query = async (nickname, message) => {
   try {
     console.log("adding entry")
@@ -214,9 +250,24 @@ const query = async (nickname, message) => {
     queryGet()
   } catch (e) {
     console.error(e)
-    process.exit(1)
+
   }
 }
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function repeatedConnect(ipfs) {
+  try {
+    console.log("trying connect to master")
+    await ipfs.swarm.connect(MASTER_MULTIADDR)
+  } catch (err) {
+    await sleep(5000)
+    await repeatedConnect(ipfs)
+  }
+}
+
 
 
 export default node
